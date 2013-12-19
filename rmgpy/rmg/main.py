@@ -301,10 +301,10 @@ class RMG:
         
         # Do all liquid-phase startup things:
         if self.solvent:
-        	Species.solventData = self.database.solvation.getSolventData(self.solvent)
-        	Species.solventName = self.solvent
-        	diffusionLimiter.enable(Species.solventData, self.database.solvation)
-        	logging.info("Setting solvent data for {0}".format(self.solvent))
+            Species.solventData = self.database.solvation.getSolventData(self.solvent)
+            Species.solventName = self.solvent
+            diffusionLimiter.enable(Species.solventData, self.database.solvation)
+            logging.info("Setting solvent data for {0}".format(self.solvent))
     
         # Set wall time
         if args.walltime == '0': 
@@ -324,7 +324,9 @@ class RMG:
     
         # Delete previous HTML file
         from rmgpy.rmg.output import saveOutputHTML
+        from rmgpy.rmg.output import saveOutputHTMLEdge
         saveOutputHTML(os.path.join(self.outputDirectory, 'output.html'), self.reactionModel)
+        saveOutputHTMLEdge(os.path.join(self.outputDirectory, 'outputEdge.html'), self.reactionModel)
         
         # Initialize reaction model
         if args.restart:
@@ -547,8 +549,12 @@ class RMG:
                 
         # Save the current state of the model core to a pretty HTML file
         self.saveOutputHTML()
+        # Save the current state of the model core to a pretty HTML file
+        self.saveOutputHTMLEdge()
         # Save a Chemkin file containing the current model core
         self.saveChemkinFiles()
+        # Save a Chemkin file containing the current model edge
+        self.saveChemkinFileEdge()
         # Save the restart file if desired
         if self.saveRestartPeriod or self.done:
             self.saveRestartFile( os.path.join(self.outputDirectory,'restart.pkl'),
@@ -691,6 +697,14 @@ class RMG:
         logging.info('Saving current model to HTML file...')
         from rmgpy.rmg.output import saveOutputHTML
         saveOutputHTML(os.path.join(self.outputDirectory, 'output.html'), self.reactionModel)
+        
+    def saveOutputHTMLEdge(self):
+        """
+        Save the current reaction model edge to a pretty HTML file.
+        """
+        logging.info('Saving current model edge to HTML file...')
+        from rmgpy.rmg.output import saveOutputHTMLEdge
+        saveOutputHTMLEdge(os.path.join(self.outputDirectory, 'outputEdge.html'), self.reactionModel)
         
     def saveChemkinFiles(self):
         """
