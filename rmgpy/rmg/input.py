@@ -61,6 +61,7 @@ def database(
              kineticsFamilies = 'default',
              kineticsDepositories = 'default',
              kineticsEstimator = 'group additivity',
+             thermoEstimator = None,
              ):
     # This function just stores the information about the database to be loaded
     # We don't actually load the database until after we're finished reading
@@ -89,6 +90,7 @@ def database(
     else:
         assert isinstance(kineticsFamilies,list), "kineticsFamilies should be either 'default', 'all', or a list of names eg. ['H_Abstraction','!Intra_Disproportionation']."
         rmg.kineticsFamilies = kineticsFamilies
+    rmg.thermoEstimator = thermoEstimator
 
 def species(label, structure, reactive=True):
     logging.debug('Found {0} species "{1}" ({2})'.format('reactive' if reactive else 'nonreactive', label, structure.toSMILES()))
@@ -400,6 +402,7 @@ def saveInputFile(path, rmg):
     f.write('    kineticsDepositories = {0!r},\n'.format(rmg.kineticsDepositories))
     f.write('    kineticsFamilies = {0!r},\n'.format(rmg.kineticsFamilies))
     f.write('    kineticsEstimator = {0!r},\n'.format(rmg.kineticsEstimator))
+    f.write('    thermoEstimator = {0!r},\n'.format(rmg.thermoEstimator))
     f.write(')\n\n')
 
     # Species
