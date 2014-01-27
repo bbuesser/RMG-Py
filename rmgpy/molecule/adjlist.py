@@ -155,7 +155,8 @@ def fromAdjacencyList(adjlist, group=False, saturateH=False):
             
             # Next number defines the number of lone electron pairs (if provided)
             lonePairElectrons = -1
-            if not group and len(data) > index:
+        #    if not group and len(data) > index:
+            if len(data) > index:
                 lpState = data[index]
                 if lpState[0] != '{':
                     if lpState == '0':
@@ -176,7 +177,7 @@ def fromAdjacencyList(adjlist, group=False, saturateH=False):
             
             # Create a new atom based on the above information
             if group:
-                atom = GroupAtom(atomType, radicalElectrons, spinMultiplicity, [0 for e in radicalElectrons], label)
+                atom = GroupAtom(atomType, radicalElectrons, spinMultiplicity, [0 for e in radicalElectrons], label, [lonePairElectrons])
             else:
                 atom = Atom(atomType[0], radicalElectrons[0], spinMultiplicity[0], 0, label, lonePairElectrons)
 
@@ -366,15 +367,19 @@ def toAdjacencyList(atoms, label=None, group=False, removeH=False, removeLonePai
             if len(atom.radicalElectrons) == 1: 
                 atomElectronStates[atom] = getElectronState(atom.radicalElectrons[0], atom.spinMultiplicity[0])
             else:
-                atomElectronStates[atom] = '{{{0}}}'.format(','.join([getElectronState(radical, spin) for radical, spin in zip(atom.radicalElectrons, atom.spinMultiplicity)]))  
+                atomElectronStates[atom] = '{{{0}}}'.format(','.join([getElectronState(radical, spin) for radical, spin in zip(atom.radicalElectrons, atom.spinMultiplicity)]))
+            # Lone Pair(s)
+            if not removeLonePairs:
+                if len(atom.lonePairs) == 1:
+                    atomLonePairs[atom] = atom.lonePairs[0]
     else:
         for atom in atomNumbers:
             # Atom type
             atomTypes[atom] = '{0}'.format(atom.element.symbol)
             # Electron state(s)
-            atomElectronStates[atom] = '{0}'.format(getElectronState(atom.radicalElectrons, atom.spinMultiplicity))    
+            atomElectronStates[atom] = '{0}'.format(getElectronState(atom.radicalElectrons, atom.spinMultiplicity))  
+            # Lone Pair(s)  
             if not removeLonePairs:
-                # Lone Pair(s)
                 atomLonePairs[atom] = atom.lonePairs
     
     # Determine field widths
@@ -397,7 +402,8 @@ def toAdjacencyList(atoms, label=None, group=False, removeH=False, removeLonePai
         adjlist += '{0:<{1:d}}'.format(atomTypes[atom], atomTypeWidth)
         # Electron state(s)
         adjlist += '{0:<{1:d}}'.format(atomElectronStates[atom], atomElectronStateWidth)
-        if group == False and not removeLonePairs:
+        #if group == False and not removeLonePairs:
+        if not removeLonePairs and atomLonePairs[atom] != -1:
             # Lone Pair(s)
             adjlist += '{0:>{1:d}}'.format(atomLonePairs[atom], atomLonePairWidth)
         
