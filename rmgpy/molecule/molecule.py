@@ -184,7 +184,7 @@ class Atom(Vertex):
         if isinstance(other, Atom):
             return self.equivalent(other)
         elif isinstance(other, GroupAtom):
-            cython.declare(atom=GroupAtom, a=AtomType, radical=cython.short, spin=cython.short, charge=cython.short, index=cython.int)
+            cython.declare(atom=GroupAtom, a=AtomType, radical=cython.short, spin=cython.short, pair=cython.short, charge=cython.short, index=cython.int)
             atom = other
             if self.atomType is None:
                 return False
@@ -198,7 +198,12 @@ class Atom(Vertex):
                 if self.radicalElectrons == radical and self.spinMultiplicity == spin: break
             else:
                 return False
-# until we have charges and lone pairs in the group values we neglect them here
+            for index in range(len(atom.lonePairs)):
+                pair = atom.lonePairs[index]
+                if self.lonePairs == pair or pair == -1: break
+            else:
+                return False
+# until we have charges in the group values we neglect them here
 #            for charge in atom.charge:
 #                if self.charge == charge: break
 #            else:
@@ -259,6 +264,13 @@ class Atom(Vertex):
         not.
         """
         return self.element.number == 8
+    
+    def isSulfur(self):
+        """
+        Return ``True`` if the atom represents an sulfur atom or ``False`` if
+        not.
+        """
+        return self.element.number == 16
 
     def incrementRadical(self):
         """
