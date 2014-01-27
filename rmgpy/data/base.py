@@ -905,7 +905,7 @@ class Database:
                 structure.atoms.append(atom)
             return result
 
-    def descendTree(self, structure, atoms, root=None):
+    def descendTree(self, structure, atoms, root=None, level=-1):
         """
         Descend the tree in search of the functional group node that best
         matches the local structure around `atoms` in `structure`.
@@ -914,31 +914,39 @@ class Database:
 
         Returns None if there is no matching root.
         """
-
-        if root is None:
-            for root in self.top:
-                if self.matchNodeToStructure(root, structure, atoms):
-                    break # We've found a matching root
-            else: # didn't break - matched no top nodes
-                return None
-        elif not self.matchNodeToStructure(root, structure, atoms):
-            return None
         
-        next = []
-        for child in root.children:
-            if self.matchNodeToStructure(child, structure, atoms):
-                next.append(child)
+        level = level - 1
 
-        if len(next) == 1:
-            return self.descendTree(structure, atoms, next[0])
-        elif len(next) == 0:
-            if len(root.children) > 0 and root.children[-1].label.startswith('Others-'):
-                return root.children[-1]
+        if level != 0:
+            if root is None:
+                for root in self.top:
+                    if self.matchNodeToStructure(root, structure, atoms):
+                        break # We've found a matching root
+                else: # didn't break - matched no top nodes
+                    return None
+            elif not self.matchNodeToStructure(root, structure, atoms):
+                return None
+        
+            next = []
+            for child in root.children:
+                if self.matchNodeToStructure(child, structure, atoms):
+                    next.append(child)
+
+            if len(next) == 1:
+                return self.descendTree(structure, atoms, next[0],level)
+            elif len(next) == 0:
+                if level < 0:
+                    if len(root.children) > 0 and root.children[-1].label.startswith('Others-'):
+                        return root.children[-1]
+                    else:
+                        return root
+                elif level > 0:
+                    return None
             else:
-                return root
-        else:
-            logging.warning('For {0}, a node {1} with overlapping children {2} was encountered in tree with top level nodes {3}. Assuming the first match is the better one.'.format(structure, root, next, self.top))
-            return self.descendTree(structure, atoms, next[0])
+                logging.warning('For {0}, a node {1} with overlapping children {2} was encountered in tree with top level nodes {3}. Assuming the first match is the better one.'.format(structure, root, next, self.top))
+                return self.descendTree(structure, atoms, next[0],level)
+        elif level == 0:
+            return root
 
 ################################################################################
 
