@@ -376,6 +376,7 @@ class ThermoDatabase(object):
         self.depository = {}
         self.depository['stable']  = ThermoDepository().load(os.path.join(path, 'stable.py'), self.local_context, self.global_context)
         self.depository['radical'] = ThermoDepository().load(os.path.join(path, 'radical.py'), self.local_context, self.global_context)
+        self.depository['HNO'] = ThermoDepository().load(os.path.join(path, 'HNO.py'), self.local_context, self.global_context)
 
     def loadLibraries(self, path, libraries=None):
         """
@@ -410,6 +411,7 @@ class ThermoDatabase(object):
         self.groups['radical'] = ThermoGroups(label='radical').load(os.path.join(path, 'radical.py'), self.local_context, self.global_context)
         self.groups['polycyclic'] = ThermoGroups(label='polycyclic').load(os.path.join(path, 'polycyclic.py'), self.local_context, self.global_context)
         self.groups['other']   =   ThermoGroups(label='other').load(os.path.join(path, 'other.py'  ), self.local_context, self.global_context)
+        self.groups['HNO']   =   ThermoGroups(label='HNO').load(os.path.join(path, 'HNO.py'  ), self.local_context, self.global_context)
 
     def save(self, path):
         """
@@ -768,6 +770,7 @@ class ThermoDatabase(object):
         
         thermoData = thermo[indices[0]]
         self.findCp0andCpInf(species, thermoData)
+        
         return thermoData
         
     def estimateRadicalThermoViaHBI(self, molecule, stableThermoEstimator ):
@@ -871,64 +874,87 @@ class ThermoDatabase(object):
             return self.estimateRadicalThermoViaHBI(molecule, self.estimateThermoViaGroupAdditivity )
 
         else: # non-radical species
-            # Generate estimate of thermodynamics
-            for atom in molecule.atoms:
-                # Iterate over heavy (non-hydrogen) atoms
-                if atom.isNonHydrogen():
-                    # Get initial thermo estimate from main group database
-                    try:
-                        self.__addGroupThermoData(thermoData, self.groups['group'], molecule, {'*':atom})
-                    except KeyError:
-                        logging.error("Couldn't find in main thermo database:")
-                        logging.error(molecule)
-                        logging.error(molecule.toAdjacencyList())
-                        raise
-                    # Correct for gauche and 1,5- interactions
-                    try:
-                        self.__addGroupThermoData(thermoData, self.groups['gauche'], molecule, {'*':atom})
-                    except KeyError: pass
-                    try:
-                        self.__addGroupThermoData(thermoData, self.groups['int15'], molecule, {'*':atom})
-                    except KeyError: pass
-                    try:
-                        self.__addGroupThermoData(thermoData, self.groups['other'], molecule, {'*':atom})
-                    except KeyError: pass
-
-            # Do ring corrections separately because we only want to match
-            # each ring one time
+            HNO_flag = True
             
-            if molecule.isCyclic():                
-                if molecule.getAllPolycyclicVertices():
-                    # If the molecule has fused ring atoms, this implies that we are dealing
-                    # with a polycyclic ring system, for which separate ring strain corrections may not
-                    # be adequate.  Therefore, we search the polycyclic thermo group corrections
-                    # instead of adding single ring strain corrections within the molecule.
-                    # For now, assume only one  polycyclic RSC can be found per molecule
-                    try:
-                        self.__addGroupThermoData(thermoData, self.groups['polycyclic'], molecule, {})
-                    except:
-                        logging.error("Couldn't find in polycyclic ring database:")
-                        logging.error(molecule)
-                        logging.error(molecule.toAdjacencyList())
-                        raise
-                else:
-                    rings = molecule.getSmallestSetOfSmallestRings()
-                    for ring in rings:
-                        # Make a temporary structure containing only the atoms in the ring
-                        # NB. if any of the ring corrections depend on ligands not in the ring, they will not be found!
-                        ringCorrection = None
-                        for atom in ring:
+            formula = molecule.getFormula()
+            if formula in ['He', 'Ar', 'N2', 'Ne']:
+                HNO_flag = False
+            
+            for atom in molecule.atoms:
+                if atom.isCarbon() or atom.isSulfur():
+                    HNO_flag = False
+            
+            # Generate estimate of thermodynamics
+            if HNO_flag:
+                for atom in molecule.atoms:
+                    # Iterate over heavy (non-hydrogen) atoms
+                    if atom.isNonHydrogen():
+                        # Get initial thermo estimate from main group database
+                        try:
+                            self.__addGroupThermoData(thermoData, self.groups['HNO'], molecule, {'*':atom})
+                        except KeyError:
+                            logging.error("Couldn't find in HNO thermo database:")
+                            logging.error(molecule)
+                            logging.error(molecule.toAdjacencyList())
+                            raise
+            else:
+                for atom in molecule.atoms:
+                    # Iterate over heavy (non-hydrogen) atoms
+                    if atom.isNonHydrogen():
+                        # Get initial thermo estimate from main group database
+                        try:
+                            self.__addGroupThermoData(thermoData, self.groups['group'], molecule, {'*':atom})
+                        except KeyError:
+                            logging.error("Couldn't find in main thermo database:")
+                            logging.error(molecule)
+                            logging.error(molecule.toAdjacencyList())
+                            raise
+                        # Correct for gauche and 1,5- interactions
+                        try:
+                            self.__addGroupThermoData(thermoData, self.groups['gauche'], molecule, {'*':atom})
+                        except KeyError: pass
+                        try:
+                            self.__addGroupThermoData(thermoData, self.groups['int15'], molecule, {'*':atom})
+                        except KeyError: pass
+                        try:
+                            self.__addGroupThermoData(thermoData, self.groups['other'], molecule, {'*':atom})
+                        except KeyError: pass
+
+                # Do ring corrections separately because we only want to match
+                # each ring one time
+                
+                if molecule.isCyclic():                
+                    if molecule.getAllPolycyclicVertices():
+                        # If the molecule has fused ring atoms, this implies that we are dealing
+                        # with a polycyclic ring system, for which separate ring strain corrections may not
+                        # be adequate.  Therefore, we search the polycyclic thermo group corrections
+                        # instead of adding single ring strain corrections within the molecule.
+                        # For now, assume only one  polycyclic RSC can be found per molecule
+                        try:
+                            self.__addGroupThermoData(thermoData, self.groups['polycyclic'], molecule, {})
+                        except:
+                            logging.error("Couldn't find in polycyclic ring database:")
+                            logging.error(molecule)
+                            logging.error(molecule.toAdjacencyList())
+                            raise
+                    else:
+                        rings = molecule.getSmallestSetOfSmallestRings()
+                        for ring in rings:
+                            # Make a temporary structure containing only the atoms in the ring
+                            # NB. if any of the ring corrections depend on ligands not in the ring, they will not be found!
+                            ringCorrection = None
+                            for atom in ring:
                             
-                            try:
-                                correction = self.__addGroupThermoData(None, self.groups['ring'], molecule, {'*':atom})
-                            except KeyError:
-                                logging.error("Couldn't find in ring database:")
-                                logging.error(ring)
-                                logging.error(ring.toAdjacencyList())
-                                raise
+                                try:
+                                    correction = self.__addGroupThermoData(None, self.groups['ring'], molecule, {'*':atom})
+                                except KeyError:
+                                    logging.error("Couldn't find in ring database:")
+                                    logging.error(ring)
+                                    logging.error(ring.toAdjacencyList())
+                                    raise
                         
-                            if ringCorrection is None or ringCorrection.H298.value_si < correction.H298.value_si:
-                                ringCorrection = correction
+                                if ringCorrection is None or ringCorrection.H298.value_si < correction.H298.value_si:
+                                    ringCorrection = correction
                         
                         self.__addThermoData(thermoData, ringCorrection)
                 
@@ -943,20 +969,23 @@ class ThermoDatabase(object):
         Add the thermodynamic data `thermoData2` to the data `thermoData1`,
         and return `thermoData1`.
         """
-        if len(thermoData1.Tdata.value_si) != len(thermoData2.Tdata.value_si) or any([T1 != T2 for T1, T2 in zip(thermoData1.Tdata.value_si, thermoData2.Tdata.value_si)]):
-            raise Exception('Cannot add these ThermoData objects due to their having different temperature points.')
-        
-        for i in range(thermoData1.Tdata.value_si.shape[0]):
-            thermoData1.Cpdata.value_si[i] += thermoData2.Cpdata.value_si[i]
-        thermoData1.H298.value_si += thermoData2.H298.value_si
-        thermoData1.S298.value_si += thermoData2.S298.value_si
-
-        if thermoData1.comment:
-            thermoData1.comment += ' + {0}'.format(thermoData2.comment)
+        if thermoData1 is None:
+            return thermoData2
         else:
-            thermoData1.comment = 'Thermo group additivity estimation: ' + thermoData2.comment
+            if len(thermoData1.Tdata.value_si) != len(thermoData2.Tdata.value_si) or any([T1 != T2 for T1, T2 in zip(thermoData1.Tdata.value_si, thermoData2.Tdata.value_si)]):
+                raise Exception('Cannot add these ThermoData objects due to their having different temperature points.')
         
-        return thermoData1
+            for i in range(thermoData1.Tdata.value_si.shape[0]):
+                thermoData1.Cpdata.value_si[i] += thermoData2.Cpdata.value_si[i]
+            thermoData1.H298.value_si += thermoData2.H298.value_si
+            thermoData1.S298.value_si += thermoData2.S298.value_si
+
+            if thermoData1.comment:
+                thermoData1.comment += ' + {0}'.format(thermoData2.comment)
+            else:
+                thermoData1.comment = 'Thermo group additivity estimation: ' + thermoData2.comment
+        
+            return thermoData1
 
     def __addGroupThermoData(self, thermoData, database, molecule, atom):
         """
@@ -964,36 +993,457 @@ class ThermoDatabase(object):
         in the structure `structure`, and add it to the existing thermo data
         `thermoData`.
         """
-        node0 = database.descendTree(molecule, atom, None)
-        if node0 is None:
+        
+        node0 = []
+        
+        if database == self.groups['HNO']:
+            node0.append(database.descendTree(molecule, atom, None, 2))
+            node_3 = database.descendTree(molecule, atom, None, 3)
+            if node_3 is not None:
+                node0.append(node_3)
+        else:
+            node0.append(database.descendTree(molecule, atom, None))
+        
+        if None in node0:
             raise KeyError('Node not found in database.')
 
         # It's possible (and allowed) that items in the tree may not be in the
         # library, in which case we need to fall up the tree until we find an
         # ancestor that has an entry in the library
-        node = node0
-        while node.data is None and node is not None:
-            node = node.parent
-        if node is None:
-            raise DatabaseError('Unable to determine thermo parameters for {0}: no library entries for {1} or any of its ancestors.'.format(molecule, node0) )
+        
+        for node in node0:
+            while node.data is None and node is not None:
+                node = node.parent
+            if node is None:
+                raise DatabaseError('Unable to determine thermo parameters for {0}: no library entries for {1} or any of its ancestors.'.format(molecule, node0) )
 
-        data = node.data; comment = node.label
-        while isinstance(data, basestring) and data is not None:
-            for entry in database.entries.values():
-                if entry.label == data:
-                    data = entry.data
-                    comment = entry.label
-                    break
-        data.comment = '{0}({1})'.format(database.label, comment)
+            data = node.data; comment = node.label
+            while isinstance(data, basestring) and data is not None:
+                for entry in database.entries.values():
+                    if entry.label == data:
+                        data = entry.data
+                        comment = entry.label
+                        break
+            data.comment = '{0}({1})'.format(database.label, comment)
 
-        # This code prints the hierarchy of the found node; useful for debugging
-        #result = ''
-        #while node is not None:
-        #   result = ' -> ' + node + result
-        #   node = database.tree.parent[node]
-        #print result[4:]
+            # This code prints the hierarchy of the found node; useful for debugging
+            #result = ''
+            #while node is not None:
+            #   result = ' -> ' + node + result
+            #   node = database.tree.parent[node]
+            #print result[4:]
 
-        if thermoData is None:
-            return data
-        else:
-            return self.__addThermoData(thermoData, data)
+            thermoData = self.__addThermoData(thermoData, data)
+            
+        return thermoData
+
+    def addThermoGroupsHNOFromTrainingSet(self,path):
+        """
+        Determine the group additivity of HNO
+        """
+        
+        import numpy as np
+        from scipy.optimize import minimize
+        import matplotlib.pyplot as plt
+        import pylab
+        from rmgpy.molecule.group import GroupAtom, GroupBond, Group
+        from rmgpy.species  import Species
+        
+        def thermoGroupFit(thermoGroups,*args):
+            
+            thermoGroups = np.reshape(thermoGroups,(A.shape[1],9))
+            
+            thermoDelta = np.sum(np.square(np.dot(A,thermoGroups) - thermo))
+            
+            return thermoDelta
+        
+        def thermoGroupFitLOOT(thermoGroups_LOOT,*args):
+            
+            thermoGroups_LOOT = np.reshape(thermoGroups_LOOT,(A_LOOT.shape[1],9))
+            
+            thermoDelta_LOOT = np.sum(np.square(np.dot(A_LOOT,thermoGroups_LOOT) - thermo_LOOT))
+            
+            return thermoDelta_LOOT
+        
+        
+        
+        n_groups = len(self.groups['HNO'].getEntriesToSave())
+        
+        for label, entry in self.depository['HNO'].entries.iteritems():
+            
+            entry.item.sortVertices()
+
+            for atom1 in entry.item.atoms:
+                if atom1.isNonHydrogen():
+                    
+                    ###################
+                    # Find new groups #
+                    ###################
+                    
+                    atomsGroup = []
+                    atomsFound = {}
+                    bondsFound = {}
+                    
+                    atomType          = [atom1.atomType]
+                    radicalElectrons  = [atom1.radicalElectrons]
+                    spinMultiplicity  = [atom1.spinMultiplicity]
+                    charge            = [atom1.charge]
+                    label             = '*'
+                    lonePairElectrons = [atom1.lonePairs]
+                    
+                    atomg1 = GroupAtom(atomType, radicalElectrons, spinMultiplicity, charge, label, lonePairElectrons)
+                    
+                    # Add the atom to the list
+                    atomsGroup.append(atomg1)
+                    atomsFound[atom1] = atomg1
+                    
+                    for atom2, bond12 in atom1.edges.items():
+                        
+                        if atom2 not in atomsFound.keys():
+                            
+                            atomType          = [atom2.atomType]
+                            radicalElectrons  = [atom2.radicalElectrons]
+                            spinMultiplicity  = [atom2.spinMultiplicity]
+                            charge            = [atom2.charge]
+                            label             = atom2.label
+                            lonePairElectrons = [atom2.lonePairs]
+                    
+                            atomg2 = GroupAtom(atomType, radicalElectrons, spinMultiplicity, charge, label, lonePairElectrons)
+                    
+                            # Add the atom to the list
+                            atomsGroup.append(atomg2)
+                            atomsFound[atom2] = atomg2
+                            
+                        if bond12 not in bondsFound.keys():
+                                                
+                            # Process list of bonds
+                            order = [bond12.order]
+                            bondg = GroupBond(atomg1, atomg2, order)
+                            bondsFound[bond12] = bondg
+                        
+                            atomsFound[atom1].edges[atomsFound[atom2]] = bondg
+                            atomsFound[atom2].edges[atomsFound[atom1]] = bondg
+                            
+                        
+                        for atom3, bond23 in atom2.edges.items():
+                            
+                            if atom3 not in atomsFound.keys():
+                                
+                                atomType          = [atom3.atomType]
+                                radicalElectrons  = [atom3.radicalElectrons]
+                                spinMultiplicity  = [atom3.spinMultiplicity]
+                                charge            = [atom3.charge]
+                                label             = atom3.label
+                                lonePairElectrons = [atom3.lonePairs]
+                    
+                                atomg3 = GroupAtom(atomType, radicalElectrons, spinMultiplicity, charge, label, lonePairElectrons)
+                    
+                                # Add the atom to the list
+                                atomsGroup.append(atomg3)
+                                atomsFound[atom3] = atomg3
+                                
+                            if bond23 not in bondsFound.keys():
+                    
+                                # Process list of bonds
+                                order = [bond23.order]
+                                bondg = GroupBond(atomg2, atomg3, order)
+                                bondsFound[bond23] = bondg
+                        
+                                atomsFound[atom2].edges[atomsFound[atom3]] = bondg
+                                atomsFound[atom3].edges[atomsFound[atom2]] = bondg
+                                
+                                
+                        
+                    group = Group(atomsGroup)    
+                    group.updateConnectivityValues()
+                    group.updateFingerprint()
+                    
+                    flagAddGroup = True
+                    
+                    for ifLabel, ifEntry in self.groups['HNO'].entries.iteritems():
+                        if group.isIsomorphic(ifEntry.item):
+                            flagAddGroup = False
+                    
+                    if flagAddGroup:
+                        
+                        ### make groups ###
+                        
+                        # search closest node for atom1
+                        node0 = self.groups['HNO'].descendTree(entry.item, {'*':atom1}, None)
+                        if node0 is None:
+                            raise KeyError('Node not found in database.')
+
+                        # It's possible (and allowed) that items in the tree may not be in the
+                        # library, in which case we need to fall up the tree until we find an
+                        # ancestor that has an entry in the library
+                        node = node0
+
+                        while node.data is None and node is not None:
+                            node = node.parent
+                        if node is None:
+                            raise DatabaseError('Unable to determine thermo parameters for {0}: no library entries for {1} or any of its ancestors.'.format(molecule, node0) )
+                        
+                        entryLabel = group.toAdjacencyList()
+                        entryLabel = entryLabel.replace("\n","")
+                        entryLabel = entryLabel.replace(" ","")
+
+                        index = n_groups
+                    
+                        n_groups = n_groups + 1
+    
+                        label = entryLabel
+                        item = group
+                        thermoData = ThermoData(
+                                                Tdata = ([300,400,500,600,800,1000,1500],"K"),
+                                                Cpdata = ([0.0,0.0,0.0,0.0,0.0,0.0,0.0],"cal/(mol*K)"),
+                                                H298 = (0.0,"kcal/mol"),
+                                                S298 = (0.0,"cal/(mol*K)"),
+                                                )
+                        reference = ''
+                        referenceType = ''
+                        shortDesc = ''
+                        longDesc = ''
+                        history = []
+                            
+                        self.groups['HNO'].entries[label] = Entry(
+                            index = index,
+                            label = label,
+                            item = item,
+                            data = thermoData,
+                            reference = reference,
+                            referenceType = referenceType,
+                            shortDesc = shortDesc,
+                            longDesc = longDesc.strip(),
+                            history = history or [],
+                        )
+                    
+                        self.groups['HNO'].entries[label].parent = node
+                        node.children.append(self.groups['HNO'].entries[label])
+                    
+# /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+        
+        A = [] 
+        thermo = []
+        itemCount = 0
+        
+        
+        despositoryLabels = {}
+        despositoryIndexes = {}
+        
+        for label, entry in self.depository['HNO'].entries.iteritems():
+            
+            itemCount = itemCount + 1
+            
+            despositoryLabels[str(itemCount-1)] = label
+            despositoryIndexes[str(itemCount-1)] = entry.index
+            
+            thermoLocal = np.zeros(9)
+            
+            thermoLocal[0] = entry.data.H298.value
+            thermoLocal[1] = entry.data.S298.value
+            thermoLocal[2:10] = entry.data.Cpdata.value[0:7]
+            
+            if thermo == []:
+                thermo = thermoLocal
+            else:
+                thermo = np.append(thermo,thermoLocal,0)
+                
+            # For thermo estimation we need the atoms to already be sorted because we
+            # iterate over them; if the order changes during the iteration then we
+            # will probably not visit the right atoms, and so will get the thermo wrong
+            entry.item.sortVertices()
+            
+            localA = np.zeros(n_groups)
+                    
+            for atom1 in entry.item.atoms:
+                if atom1.isNonHydrogen():
+                    
+                    # Get initial thermo estimate from HNO database
+                    
+                    ### level 2 ###
+                    
+                    node0 = self.groups['HNO'].descendTree(entry.item, {'*':atom1}, None, 2)
+                    if node0 is None:
+                        raise KeyError('Node not found in database.')
+
+                    # It's possible (and allowed) that items in the tree may not be in the
+                    # library, in which case we need to fall up the tree until we find an
+                    # ancestor that has an entry in the library
+                    node = node0
+                    while node.data is None and node is not None:
+                        node = node.parent
+                    if node is None:
+                        raise DatabaseError('Unable to determine thermo parameters for {0}: no library entries for {1} or any of its ancestors.'.format(molecule, node0) )
+                    
+                    localA[node.index-1] = localA[node.index-1] + 1
+                    
+                    
+                    ### level 3 ###
+                    
+                    node = self.groups['HNO'].descendTree(entry.item, {'*':atom1}, None, 3)
+                    
+                    if node is not None:
+                        localA[node.index-1] = localA[node.index-1] + 1
+
+            A = np.append(A,localA,0)
+        
+        
+        ################
+        # Minimization #
+        ################
+                
+        A = np.reshape(A,(itemCount,n_groups))
+        thermo = np.reshape(thermo,(itemCount,9))
+        thermoGroups = np.ones((n_groups,9))*0.01
+                    
+        res = minimize(thermoGroupFit, thermoGroups, args=(A, thermo), method='BFGS', options={'disp': True})
+        
+        thermoGroups = np.reshape(res.x,(n_groups,9))
+        
+        groupThermo = np.dot(A,thermoGroups)
+        
+        ###################################
+        # Minimization analysis and print #
+        ###################################
+        
+        fig = pylab.figure()
+        
+        X_Hf_ideal = [min(thermo[:,0]),max(thermo[:,0])]
+        Y_Hf_ideal = [min(groupThermo[:,0]),max(groupThermo[:,0])]
+        Y_Hf_ideal_neg5 = [min(groupThermo[:,0])-5,max(groupThermo[:,0])-5]
+        Y_Hf_ideal_pos5 = [min(groupThermo[:,0])+5,max(groupThermo[:,0])+5]
+        
+        pylab.subplot(3,3,1)
+        pylab.plot(thermo[:,0],groupThermo[:,0],'o',X_Hf_ideal,Y_Hf_ideal,'g',X_Hf_ideal,Y_Hf_ideal_neg5,'g--',X_Hf_ideal,Y_Hf_ideal_pos5,'g--')
+        pylab.title('Hf_298 (kcal/mol)')
+        
+        X_S_ideal = [min(thermo[:,1]),max(thermo[:,1])]
+        Y_S_ideal = [min(groupThermo[:,1]),max(groupThermo[:,1])]
+        Y_S_ideal_neg5 = [min(groupThermo[:,1])-5,max(groupThermo[:,1])-5]
+        Y_S_ideal_pos5 = [min(groupThermo[:,1])+5,max(groupThermo[:,1])+5]
+        
+        pylab.subplot(3,3,2)
+        pylab.plot(thermo[:,1],groupThermo[:,1],'o',X_S_ideal,Y_S_ideal,'g',X_S_ideal,Y_S_ideal_neg5,'g--',X_S_ideal,Y_S_ideal_pos5,'g--')
+        pylab.title('S_298 (cal/(mol*K)')
+        
+        T_range = [300,400,500,600,800,1000,1200]
+        for i in range(7):
+            X_Cp_ideal = [min(thermo[:,2+i]),max(thermo[:,2+i])]
+            Y_Cp_ideal = [min(groupThermo[:,2+i]),max(groupThermo[:,2+i])]
+            Y_Cp_ideal_neg5 = [min(groupThermo[:,2+i])-5,max(groupThermo[:,2+i])-5]
+            Y_Cp_ideal_pos5 = [min(groupThermo[:,2+i])+5,max(groupThermo[:,2+i])+5]
+        
+            pylab.subplot(3,3,3+i)
+            pylab.plot(thermo[:,2+i],groupThermo[:,2+i],'o',X_Cp_ideal,Y_Cp_ideal,'g',X_Cp_ideal,Y_Cp_ideal_neg5,'g--',X_Cp_ideal,Y_Cp_ideal_pos5,'g--')
+            pylab.title('Cp_'+str(T_range[i])+' cal/(mol*K)')
+        
+        pylab.savefig(os.path.join(path, 'thermo/Group_additivity_fit_HNO.pdf'))
+        
+        for label, entry in self.groups['HNO'].entries.iteritems():
+            if entry.index != -1:
+                entry.data.H298.value = thermoGroups[entry.index-1][0]
+                entry.data.S298.value = thermoGroups[entry.index-1][1]
+                entry.data.Cpdata.value = thermoGroups[entry.index-1][2:9]
+        
+        self.groups['HNO'].save(os.path.join(path, 'thermo/HNO_groups.py'))
+        
+        f = open(os.path.join(path, 'thermo/statistics.txt'), 'w')
+        f.write('index occurrences\n\n')
+        
+        for label, entry in self.groups['HNO'].entries.iteritems():
+            if entry.index != -1:
+                f.write(str(entry.index) + ' ' + str(int(sum(A[:,entry.index-1]))) + '\n')
+                
+        f.close()
+        
+        errorTitles = ['Hf298','S298','Cp300','Cp400','Cp500','Cp600','Cp800','Cp1000','Cp1500']
+        
+        f = open(os.path.join(path, 'thermo/errors.txt'), 'w')
+        
+        titleCount = 0
+        
+        for title in errorTitles:
+        
+            f.write('3 largest errors in ' + title + '\n')
+        
+            delta = np.dot(A,thermoGroups) - thermo
+        
+            delta = delta[:,titleCount]
+            delta_abs = abs(delta)
+            delta_indexes = delta_abs.argsort()[-3:][::-1]
+        
+            f.write('rank label error\n')
+   
+            count = 0
+        
+            for index in delta_indexes:
+                count = count + 1
+                f.write(str(count) + ' '  + ' ' + despositoryLabels[str(index)] + ' ' + str(delta[index]) + ' \n')
+                
+                
+            f.write('\n\n')
+            
+            titleCount = titleCount + 1
+          
+        f.close()
+        
+        ######################
+        # Leave-One-Out Test #
+        ######################
+        
+        f = open(os.path.join(path, 'thermo/LOOT.txt'), 'w')
+        f.write('index label Hf298 S298 Cp300 Cp400 Cp500 Cp600 Cp800 Cp1000 Cp1500\n\n')
+        f.close()
+        
+        for item_no in range(itemCount):
+            
+            A_LOOT             = A
+            thermo_LOOT        = thermo #np.reshape(thermo,(itemCount,9))
+            thermoGroups_LOOT  = np.ones((n_groups,9))*0.01
+            
+            A_item = A_LOOT[item_no]
+            A_LOOT = np.delete(A_LOOT,item_no,0)
+            thermo_LOOT = np.delete(thermo_LOOT,item_no,0)
+            
+            res_LOOT = minimize(thermoGroupFitLOOT, thermoGroups_LOOT, args=(A_LOOT, thermo_LOOT), method='BFGS', options={'disp': True})
+        
+            thermoGroups_LOOT = np.reshape(res_LOOT.x,(n_groups,9))
+        
+            groupThermo_LOOT = np.dot(A_item,thermoGroups_LOOT)
+            
+            f = open(os.path.join(path, 'thermo/LOOT.txt'), 'a')
+            
+            f.write(str(despositoryIndexes[str(item_no)]) + ' ' + despositoryLabels[str(item_no)] 
+                    + ' ' + str(self.depository['HNO'].entries[despositoryLabels[str(item_no)]].data.H298.value) 
+                    + ' ' + str(self.depository['HNO'].entries[despositoryLabels[str(item_no)]].data.S298.value) 
+                    + ' ' + str(self.depository['HNO'].entries[despositoryLabels[str(item_no)]].data.Cpdata.value[0])
+                    + ' ' + str(self.depository['HNO'].entries[despositoryLabels[str(item_no)]].data.Cpdata.value[1])
+                    + ' ' + str(self.depository['HNO'].entries[despositoryLabels[str(item_no)]].data.Cpdata.value[2])
+                    + ' ' + str(self.depository['HNO'].entries[despositoryLabels[str(item_no)]].data.Cpdata.value[3])
+                    + ' ' + str(self.depository['HNO'].entries[despositoryLabels[str(item_no)]].data.Cpdata.value[4])
+                    + ' ' + str(self.depository['HNO'].entries[despositoryLabels[str(item_no)]].data.Cpdata.value[5])
+                    + ' ' + str(self.depository['HNO'].entries[despositoryLabels[str(item_no)]].data.Cpdata.value[6])
+                    + ' '
+                    + ' '
+                    + ' '
+                    + ' ' + str(groupThermo_LOOT[0])
+                    + ' ' + str(groupThermo_LOOT[1])
+                    + ' ' + str(groupThermo_LOOT[2])
+                    + ' ' + str(groupThermo_LOOT[3])
+                    + ' ' + str(groupThermo_LOOT[4])
+                    + ' ' + str(groupThermo_LOOT[5])
+                    + ' ' + str(groupThermo_LOOT[6])
+                    + ' ' + str(groupThermo_LOOT[7])
+                    + ' ' + str(groupThermo_LOOT[8])
+                    + '\n')
+            
+            f.close()
+            
+        
+
+   #     res[1]
+                    
+        return None
+
+            
+            
