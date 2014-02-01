@@ -1395,49 +1395,49 @@ class ThermoDatabase(object):
         f.write('index label Hf298 S298 Cp300 Cp400 Cp500 Cp600 Cp800 Cp1000 Cp1500\n\n')
         f.close()
         
-        for item_no in range(itemCount):
-            
-            A_LOOT             = A
-            thermo_LOOT        = thermo #np.reshape(thermo,(itemCount,9))
-            thermoGroups_LOOT  = np.ones((n_groups,9))*0.01
-            
-            A_item = A_LOOT[item_no]
-            A_LOOT = np.delete(A_LOOT,item_no,0)
-            thermo_LOOT = np.delete(thermo_LOOT,item_no,0)
-            
-            res_LOOT = minimize(thermoGroupFitLOOT, thermoGroups_LOOT, args=(A_LOOT, thermo_LOOT), method='BFGS', options={'disp': True})
-        
-            thermoGroups_LOOT = np.reshape(res_LOOT.x,(n_groups,9))
-        
-            groupThermo_LOOT = np.dot(A_item,thermoGroups_LOOT)
-            
-            f = open(os.path.join(path, 'thermo/LOOT.txt'), 'a')
-            
-            f.write(str(despositoryIndexes[str(item_no)]) + ' ' + despositoryLabels[str(item_no)] 
-                    + ' ' + str(self.depository['HNO'].entries[despositoryLabels[str(item_no)]].data.H298.value) 
-                    + ' ' + str(self.depository['HNO'].entries[despositoryLabels[str(item_no)]].data.S298.value) 
-                    + ' ' + str(self.depository['HNO'].entries[despositoryLabels[str(item_no)]].data.Cpdata.value[0])
-                    + ' ' + str(self.depository['HNO'].entries[despositoryLabels[str(item_no)]].data.Cpdata.value[1])
-                    + ' ' + str(self.depository['HNO'].entries[despositoryLabels[str(item_no)]].data.Cpdata.value[2])
-                    + ' ' + str(self.depository['HNO'].entries[despositoryLabels[str(item_no)]].data.Cpdata.value[3])
-                    + ' ' + str(self.depository['HNO'].entries[despositoryLabels[str(item_no)]].data.Cpdata.value[4])
-                    + ' ' + str(self.depository['HNO'].entries[despositoryLabels[str(item_no)]].data.Cpdata.value[5])
-                    + ' ' + str(self.depository['HNO'].entries[despositoryLabels[str(item_no)]].data.Cpdata.value[6])
-                    + ' '
-                    + ' '
-                    + ' '
-                    + ' ' + str(groupThermo_LOOT[0])
-                    + ' ' + str(groupThermo_LOOT[1])
-                    + ' ' + str(groupThermo_LOOT[2])
-                    + ' ' + str(groupThermo_LOOT[3])
-                    + ' ' + str(groupThermo_LOOT[4])
-                    + ' ' + str(groupThermo_LOOT[5])
-                    + ' ' + str(groupThermo_LOOT[6])
-                    + ' ' + str(groupThermo_LOOT[7])
-                    + ' ' + str(groupThermo_LOOT[8])
-                    + '\n')
-            
-            f.close()
+#        for item_no in range(itemCount):
+#            
+#            A_LOOT             = A
+#            thermo_LOOT        = thermo #np.reshape(thermo,(itemCount,9))
+#            thermoGroups_LOOT  = np.ones((n_groups,9))*0.01
+#            
+#            A_item = A_LOOT[item_no]
+#            A_LOOT = np.delete(A_LOOT,item_no,0)
+#            thermo_LOOT = np.delete(thermo_LOOT,item_no,0)
+#            
+#            res_LOOT = minimize(thermoGroupFitLOOT, thermoGroups_LOOT, args=(A_LOOT, thermo_LOOT), method='BFGS', options={'disp': True})
+#        
+#            thermoGroups_LOOT = np.reshape(res_LOOT.x,(n_groups,9))
+#        
+#            groupThermo_LOOT = np.dot(A_item,thermoGroups_LOOT)
+#            
+#            f = open(os.path.join(path, 'thermo/LOOT.txt'), 'a')
+#            
+#            f.write(str(despositoryIndexes[str(item_no)]) + ' ' + despositoryLabels[str(item_no)] 
+#                    + ' ' + str(self.depository['HNO'].entries[despositoryLabels[str(item_no)]].data.H298.value) 
+#                    + ' ' + str(self.depository['HNO'].entries[despositoryLabels[str(item_no)]].data.S298.value) 
+#                    + ' ' + str(self.depository['HNO'].entries[despositoryLabels[str(item_no)]].data.Cpdata.value[0])
+#                    + ' ' + str(self.depository['HNO'].entries[despositoryLabels[str(item_no)]].data.Cpdata.value[1])
+#                    + ' ' + str(self.depository['HNO'].entries[despositoryLabels[str(item_no)]].data.Cpdata.value[2])
+#                    + ' ' + str(self.depository['HNO'].entries[despositoryLabels[str(item_no)]].data.Cpdata.value[3])
+#                    + ' ' + str(self.depository['HNO'].entries[despositoryLabels[str(item_no)]].data.Cpdata.value[4])
+#                    + ' ' + str(self.depository['HNO'].entries[despositoryLabels[str(item_no)]].data.Cpdata.value[5])
+#                    + ' ' + str(self.depository['HNO'].entries[despositoryLabels[str(item_no)]].data.Cpdata.value[6])
+#                    + ' '
+#                    + ' '
+#                    + ' '
+#                    + ' ' + str(groupThermo_LOOT[0])
+#                    + ' ' + str(groupThermo_LOOT[1])
+#                    + ' ' + str(groupThermo_LOOT[2])
+#                    + ' ' + str(groupThermo_LOOT[3])
+#                    + ' ' + str(groupThermo_LOOT[4])
+#                    + ' ' + str(groupThermo_LOOT[5])
+#                    + ' ' + str(groupThermo_LOOT[6])
+#                    + ' ' + str(groupThermo_LOOT[7])
+#                    + ' ' + str(groupThermo_LOOT[8])
+#                    + '\n')
+#            
+#            f.close()
             
         
 
