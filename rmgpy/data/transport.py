@@ -93,6 +93,7 @@ class TransportLibrary(Database):
     def loadEntry(self,
                   index,
                   label,
+                  multiplicity,
                   molecule,
                   transport,
                   reference=None,
@@ -101,10 +102,15 @@ class TransportLibrary(Database):
                   longDesc='',
                   history=None
                   ):
+        
+        item = Molecule().fromAdjacencyList(molecule)
+        item.multiplicity = multiplicity
+        
         self.entries[label] = Entry(
             index = index,
             label = label,
-            item = Molecule().fromAdjacencyList(molecule),
+            multiplicity =multiplicity,
+            item = item,
             data = transport,
             reference = reference,
             referenceType = referenceType,
