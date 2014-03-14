@@ -4,13 +4,14 @@ database(
     reactionLibraries = [],
     seedMechanisms = [],
     kineticsDepositories = ['training'],
-    kineticsFamilies = ['!Intra_Disproportionation','!Substitution_O'],
+    kineticsFamilies = ['!1,2_Insertion','!Intra_Disproportionation','!Substitution_O'],
     kineticsEstimator = 'rate rules',
 )
 
 # List of species
 species(
     label='ethane',
+    multiplicity = 1,
     reactive=True,
     structure=SMILES("CC"),
 )
