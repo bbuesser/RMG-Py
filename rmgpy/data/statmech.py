@@ -137,10 +137,14 @@ class StatmechDepository(Database):
                   longDesc='',
                   history=None
                   ):
+        
+        item = Molecule().fromAdjacencyList(molecule)
+        item.multiplicity = multiplicity
+        
         self.entries[label] = Entry(
             index = index,
             label = label,
-            item = Molecule().fromAdjacencyList(molecule),
+            item = item,
             data = statmech,
             reference = reference,
             referenceType = referenceType,
