@@ -1547,7 +1547,7 @@ def saveSpeciesDictionary(path, species):
     """
     with open(path, 'w') as f:
         for spec in species:
-            f.write(spec.molecule[0].toAdjacencyList(label=getSpeciesIdentifier(spec), removeH=False))
+            f.write(spec.molecule[0].toAdjacencyList(label=getSpeciesIdentifier(spec), removeH=False, printMultiplicity=True))
             f.write('\n')
 
 def saveTransportFile(path, species):
