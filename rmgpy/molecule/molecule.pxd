@@ -37,7 +37,6 @@ cdef class Atom(Vertex):
 
     cdef public Element element
     cdef public short radicalElectrons
-    cdef public short spinMultiplicity
     cdef public short charge
     cdef public str label
     cdef public AtomType atomType
@@ -102,6 +101,7 @@ cdef class Molecule(Graph):
 
     cdef public bint implicitHydrogens
     cdef public int symmetryNumber
+    cdef public int multiplicity
     cdef public object rdMol
     cdef public int rdMolConfId
     cdef str _fingerprint
@@ -168,7 +168,7 @@ cdef class Molecule(Graph):
 
     cpdef fromRDKitMol(self, rdkitmol)
 
-    cpdef fromAdjacencyList(self, str adjlist, bint saturateH=?)
+    cpdef fromAdjacencyList(self, str adjlist, bint saturateH=?, maxMultiplicity=?)
 
     cpdef str toInChI(self)
 
@@ -182,7 +182,7 @@ cdef class Molecule(Graph):
 
 #    cpdef tRDKitMol(self)
 
-    cpdef toAdjacencyList(self, str label=?, bint removeH=?, bint removeLonePairs=?)
+    cpdef toAdjacencyList(self, str label=?, bint removeH=?, bint removeLonePairs=?, printMultiplicity=?)
 
     cpdef bint isLinear(self) except -2
 
