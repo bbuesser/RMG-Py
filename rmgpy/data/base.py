@@ -801,11 +801,19 @@ class Database:
         
         from rmgpy.data.kinetics.family import KineticsFamily
         
+        #A function to add to the not in Subgroup dictionary
+        def addToNotSubgroup(notSubgroup, nodeName, atomIndex):
+            if nodeName not in notSubgroup:
+                notSubgroup[nodeName]=[atomIndex]
+            else:
+                notSubgroup[nodeName].append(atomIndex) 
+            return notSubgroup
+
         #list of nodes that are not wellFormed
         noGroup=[]
         noMatchingGroup={}
         notInTree=[]
-        notSubgroup=[]
+        notSubgroup={}
         probablyProduct=[]
         
         # Give correct arguments for each type of database
@@ -815,48 +823,44 @@ class Database:
             treeIsPresent=True
             topNodes=self.getRootTemplate()
 
-        # Make list of all nodes in library
+        # Make list of all node names in library
         libraryNodes=[]
-        libraryNodesSplit = []
         for nodes in library:
             libraryNodes.append(nodes)
-            libraryNodesSplit.extend(nodes.split(';'))
-        libraryNodesSplit = list(set(libraryNodesSplit))
-
-        
 
         try:
-            for node in libraryNodesSplit:
-
-            # All nodes in library must be in dictionary
-                if node not in groups:
-                    noGroup.append(node)
-                    
-                #no point checking in tree if it doesn't even exist in groups
-                for libraryNode in libraryNodes:
-                    nodes=libraryNode.split(';')
-                    for libraryEntry in library[libraryNode]:
-                        for node in nodes:
-                            for libraryGroup in libraryEntry.item.reactants:
-                                try:
-                                    if groups[node].item.isIsomorphic(libraryGroup):
-                                        break
-                                except AttributeError:
-                                    if isinstance(groups[node].item, LogicOr) and isinstance(libraryGroup, LogicOr):
-                                        if groups[node].item==libraryGroup:
-                                            break
-                                except TypeError:
-                                    print libraryGroup, type(libraryGroup)
-                                except KeyError:
-                                    noGroup.append(node)
-                            else:
-                                noMatchingGroup[node]=libraryNode
-                
+            #Check that the node definition in the library matches the dictionary
+            for libraryNode in libraryNodes:
+                nodes=libraryNode.split(';')
+                for libraryEntry in library[libraryNode]:
+                    for nodeName in nodes:
+                        #If the nodes is not in the dictionary we record it
+                        if nodeName not in groups:
+                            noGroup.append(nodeName)
+                            #we can't do the rest of the check
+                            break
+                        for libraryGroup in libraryEntry.item.reactants:
+                            #Takes care of the case where both are groups
+                            if isinstance(groups[nodeName].item, Group) and isinstance(libraryGroup, Group):
+                                if groups[nodeName].item.isIsomorphic(libraryGroup):
+                                    break
+                            #Takes care of the case where both are LogicOrs
+                            elif isinstance(groups[nodeName].item, LogicOr) and isinstance(libraryGroup, LogicOr):
+                                if groups[nodeName].item==libraryGroup:
+                                    break 
+                        #This could be caused by two things:
+                        #The two were not the same type of object
+                        #The two did not match, even if they were the same object
+                        #either way we want to record it 
+                        else:
+                            noMatchingGroup[nodeName]=libraryNode
+ 
+            # If a tree is present, all nodes in dictionary should be in the tree
+            # This is true when ascending through parents leads to a top node   
             if treeIsPresent:
-                # All nodes need to be in the tree
-                # This is true when ascending through parents leads to a top node
                 for nodeName in groups:
-                    ascendParent=self.groups.entries[nodeName]
+                    nodeGroup=self.groups.entries[nodeName]
+                    ascendParent=nodeGroup
 
                     while ascendParent not in topNodes:
                         child=ascendParent
@@ -870,44 +874,63 @@ class Database:
                                 notInTree.append(child.label)
                                 break
                     #check if child is actually subgroup of parent
-                    ascendParent=self.groups.entries[nodeName].parent
-                    if ascendParent is not None:
-                        try:
-                            if not ascendParent.item.isSubgraphIsomorphic(self.groups.entries[nodeName].item):
-                                notSubgroup.append(nodeName)
-                        except AttributeError:
-                            if isinstance(groups[node].item, LogicOr) and isinstance(libraryGroup, LogicOr):
-                                if groups[node].item==libraryGroup:
+                    nodeParent=nodeGroup.parent
+                    #Don't need to do check for topNodes
+                    if nodeParent is not None:
+#                         try:                                 
+                            #Each atom in nodeParent must its equivalent in nodeGroup (but not necessarily vice-versa)
+                        if isinstance(nodeParent.item, LogicOr):
+                            #passes test for in case of LogicOr parent
+                            if not nodeGroup.label in nodeParent.item.components:
+                                #input a -1 in this case
+                                notSubgroup=addToNotSubgroup(notSubgroup, nodeName, -1)
+                                break
+                            else:
+                                while isinstance(nodeParent.item, LogicOr):
+                                    nodeParent=nodeParent.parent
+                                    if nodeParent == None:
+                                        break
+                            if nodeParent == None: break
+                        elif isinstance(nodeGroup.item, LogicOr):
+                            print 'check ', nodeGroup
+                            break
+                        for index, parentAtom in enumerate(nodeParent.item.atoms):
+                            if index +1 > len(nodeGroup.item.atoms):
+                                notSubgroup=addToNotSubgroup(notSubgroup, nodeName, index)
+                                break
+                            childAtom=nodeGroup.item.atoms[index]
+                            #Each atom must have sub-cases of atomType, label, charges, and radicals
+                            if not childAtom.isSpecificCaseOf(parentAtom):
+                                #make a note of it in notSubgroup
+                                notSubgroup=addToNotSubgroup(notSubgroup, nodeName, index)
+                                break
+                            #Each bond on parentAtom must have an equivalent in childAtom (but not necessarily vice-versa)
+                            parentBonds=parentAtom.bonds
+                            childBonds=childAtom.bonds
+                            for atomGroup1 in parentBonds:
+                                atomIndex=nodeParent.item.atoms.index(atomGroup1)
+                                if atomIndex +1 > len(nodeGroup.item.atoms):
+                                    notSubgroup=addToNotSubgroup(notSubgroup, nodeName, index)
                                     break
-                        except TypeError:
-                            print libraryGroup, type(libraryGroup)
+                                atomGroup2=nodeGroup.item.atoms[atomIndex]
+                                if atomGroup2 in childBonds:
+                                    if not childBonds[atomGroup2].isSpecificCaseOf(parentBonds[atomGroup1]):
+                                    #if the bond type of atomGroup2 is not a specific case of atomGroup1 make a note of it
+                                        notSubgroup=addToNotSubgroup(notSubgroup, nodeName, index)
+                                        break
+                                #The atomGroup is not even bonded to
+                                else:
+                                    notSubgroup=addToNotSubgroup(notSubgroup, nodeName, index)
+                                    break
+#                         except AttributeError:
+#                             if isinstance(groups[nodeName].item, LogicOr) and isinstance(libraryGroup, LogicOr):
+#                                 if groups[nodeName].item==libraryGroup:
+#                                     break
+#                         except TypeError:
+#                             print libraryGroup, type(libraryGroup)
             # The adj list of each node actually needs to be subset of its parent's adjlist
-            #More to come later -nyee
         except DatabaseError, e:
             logging.error(str(e))
-
-#             # If a tree is present, all nodes in library should be in tree
-#             # (Technically the database is still well-formed, but let's warn
-#             # the user anyway
-#             if len(self.tree.parent) > 0:
-#                 try:
-#                     if node not in self.tree.parent:
-#                         raise DatabaseError('Node "{0}" in library is not present in tree.'.format(node))
-#                 except DatabaseError, e:
-#                     logging.warning(str(e))
-# 
-#         # If a tree is present, all nodes in tree must be in dictionary
-#         if self.tree is not None:
-#             for node in self.tree.parent:
-#                 try:
-#                     if node not in self.entries:
-#                         raise DatabaseError('Node "{0}" in tree is not present in dictionary.'.format(node))
-#                 except DatabaseError, e:
-#                     wellFormed = False
-#                     logging.error(str(e))
-        
-#         for libraryRule in library:
-            #check the groups
         
         #eliminate duplicates
         noGroup=list(set(noGroup))
