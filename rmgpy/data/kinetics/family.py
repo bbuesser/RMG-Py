@@ -38,7 +38,7 @@ import codecs
 from copy import copy, deepcopy
 
 from rmgpy.data.base import Database, Entry, LogicNode, LogicOr, ForbiddenStructures,\
-                            ForbiddenStructureException, getAllCombinations
+                            ForbiddenStructureException, getAllCombinations, DatabaseError
 from rmgpy.reaction import Reaction
 from rmgpy.kinetics import Arrhenius, ArrheniusEP, ThirdBody, Lindemann, Troe, \
                            PDepArrhenius, MultiArrhenius, MultiPDepArrhenius, \
@@ -1941,3 +1941,150 @@ class KineticsFamily(Database):
             return 's^-1'
         else:
             raise ValueError('Unable to determine units of rate coefficient for reaction family "{0}".'.format(self.label))
+    
+    def checkWellFormed(self):
+        """
+        Returns a tuple of malformed database entries:
+        
+        noGroup is a list of nodes in the rules that has no corresponding group in
+        groups.py
+        
+        noMatchingGroup is a dictionary with entry labels from the rules as a key
+        and entry labels from groups as values. These are groups where rule.py's
+        adj list does not match group.py's.
+        
+        notInTree is a list of groups that do not appear in the tree
+        
+        notSubgroup is a dictionary with group labels as keys and atom indexes 
+        as values. Each key is a group where the child's adj list is not a
+        true child of it's parent. The list of indexes corresponds to the
+        child's adj list index, where the atom is not a true child. 
+        
+        probablyProducts is a list of groups which do not apepar in the
+        tree, but are probably products (as opposed to reactants) which
+        are created in the database loading. These are not necessarily
+        malformations, but because I'm not certain where they came from,
+        I decided to list them.
+        """
+        
+        
+        #A function to add to the not in Subgroup dictionary
+        def addToNotSubgroup(notSubgroup, nodeName, atomIndex):
+            if nodeName not in notSubgroup:
+                notSubgroup[nodeName]=[atomIndex]
+            else:
+                notSubgroup[nodeName].append(atomIndex) 
+            return notSubgroup
+
+        #list of nodes that are not wellFormed
+        noGroup=[]
+        noMatchingGroup={}
+        notInTree=[]
+        notSubgroup={}
+        probablyProduct=[]
+        
+        # Give correct arguments for each type of database
+#         if isinstance(self, KineticsFamily):
+        library=self.rules.entries
+        groups=self.groups.entries
+        topNodes=self.getRootTemplate()
+
+        # Make list of all node names in library
+        libraryNodes=[]
+        for nodes in library:
+            libraryNodes.append(nodes)
+
+        try:
+            #Each label in rules.py should be be in the form group1;group2;group3 etc
+            #and each group must appear in groups.py
+            for libraryNode in libraryNodes:
+                nodes=libraryNode.split(';')
+                for libraryEntry in library[libraryNode]:
+                    for nodeName in nodes:
+                        if nodeName not in groups:
+                            noGroup.append(nodeName)
+                            #If the node is not in the dictionary, we can't do the rest of the check
+                            break
+                        #Each adj list in rules.py should match the adj list in group's.py
+                        for libraryGroup in libraryEntry.item.reactants:
+                            #Takes care of the case where both are groups
+                            if isinstance(groups[nodeName].item, Group) and isinstance(libraryGroup, Group):
+                                if groups[nodeName].item.isIsomorphic(libraryGroup):
+                                    break
+                            #Takes care of the case where both are LogicOrs
+                            elif isinstance(groups[nodeName].item, LogicOr) and isinstance(libraryGroup, LogicOr):
+                                if groups[nodeName].item==libraryGroup:
+                                    break 
+                        #If we arrive here, the adj lists did not match
+                        else:
+                            noMatchingGroup[nodeName]=libraryNode
+ 
+            # Each group in groups.py should appear in the tree
+            # This is true when ascending through parents leads to a top node   
+            for nodeName in groups:
+                nodeGroup=self.groups.entries[nodeName]
+                ascendParent=nodeGroup
+                while ascendParent not in topNodes:
+                    child=ascendParent
+                    ascendParent=ascendParent.parent
+                    if ascendParent is None or child not in ascendParent.children:
+                        if child.index==-1:
+                            probablyProduct.append(child.label)
+                            break
+                        else:
+                        # If a group is not in a tree, we want to save the uppermost parent, not necessarily the original node
+                            notInTree.append(child.label)
+                            break
+                #For a correct child-parent relationship, each atom in the parent should have a corresponding child atom in the child.
+                nodeParent=nodeGroup.parent
+                #Don't need to do check for topNodes
+                if nodeParent is not None:                         
+                    if isinstance(nodeParent.item, LogicOr):
+                        if not nodeGroup.label in nodeParent.item.components:
+                            #-1 index means the child is not 
+                            notSubgroup=addToNotSubgroup(notSubgroup, nodeName, -1)
+                            continue
+                        else:
+                            #if the parent is a LogicOr, we want to keep ascending until we get to a group or hit a discontinuity (could be
+                            #malformed tree or just ascending past the top node)
+                            while isinstance(nodeParent.item, LogicOr):
+                                nodeParent=nodeParent.parent
+                                if nodeParent == None: break
+                        if nodeParent == None: continue
+                    elif isinstance(nodeGroup.item, LogicOr):
+                        print nodeGroup, ' is an intermediate LogicOr. See if it can be replaced with a adj list.'
+                        continue
+                    for index, parentAtom in enumerate(nodeParent.item.atoms):
+                        #A child is malformed if it's parent has more atoms
+                        if index +1 > len(nodeGroup.item.atoms):
+                            notSubgroup=addToNotSubgroup(notSubgroup, nodeName, index)
+                            continue
+                        childAtom=nodeGroup.item.atoms[index]
+                        #Each atom must have sub-cases of atomType, label, charges, and radicals
+                        if not childAtom.isSpecificCaseOf(parentAtom):
+                            notSubgroup=addToNotSubgroup(notSubgroup, nodeName, index)
+                            continue
+                        #Each bond on parentAtom must have an equivalent in childAtom (but not necessarily vice-versa)
+                        parentBonds=parentAtom.bonds
+                        childBonds=childAtom.bonds
+                        for atomGroup1 in parentBonds:
+                            atomIndex=nodeParent.item.atoms.index(atomGroup1)
+                            if atomIndex +1 > len(nodeGroup.item.atoms):
+                                notSubgroup=addToNotSubgroup(notSubgroup, nodeName, index)
+                                continue
+                            atomGroup2=nodeGroup.item.atoms[atomIndex]
+                            if atomGroup2 in childBonds:
+                                if not childBonds[atomGroup2].isSpecificCaseOf(parentBonds[atomGroup1]):
+                                    notSubgroup=addToNotSubgroup(notSubgroup, nodeName, index)
+                                    continue
+                            else:
+                                notSubgroup=addToNotSubgroup(notSubgroup, nodeName, index)
+                                continue
+        except DatabaseError, e:
+            logging.error(str(e))
+        
+        #eliminate duplicates
+        noGroup=list(set(noGroup))
+        notInTree=list(set(notInTree))
+        
+        return (noGroup, noMatchingGroup, notInTree, notSubgroup, probablyProduct)
