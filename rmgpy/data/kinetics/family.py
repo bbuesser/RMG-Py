@@ -2054,32 +2054,10 @@ class KineticsFamily(Database):
                     elif isinstance(nodeGroup.item, LogicOr):
                         print nodeGroup, ' is an intermediate LogicOr. See if it can be replaced with a adj list.'
                         continue
-                    for index, parentAtom in enumerate(nodeParent.item.atoms):
-                        #A child is malformed if it's parent has more atoms
-                        if index +1 > len(nodeGroup.item.atoms):
-                            notSubgroup=addToNotSubgroup(notSubgroup, nodeName, index)
-                            continue
-                        childAtom=nodeGroup.item.atoms[index]
-                        #Each atom must have sub-cases of atomType, label, charges, and radicals
-                        if not childAtom.isSpecificCaseOf(parentAtom):
-                            notSubgroup=addToNotSubgroup(notSubgroup, nodeName, index)
-                            continue
-                        #Each bond on parentAtom must have an equivalent in childAtom (but not necessarily vice-versa)
-                        parentBonds=parentAtom.bonds
-                        childBonds=childAtom.bonds
-                        for atomGroup1 in parentBonds:
-                            atomIndex=nodeParent.item.atoms.index(atomGroup1)
-                            if atomIndex +1 > len(nodeGroup.item.atoms):
-                                notSubgroup=addToNotSubgroup(notSubgroup, nodeName, index)
-                                continue
-                            atomGroup2=nodeGroup.item.atoms[atomIndex]
-                            if atomGroup2 in childBonds:
-                                if not childBonds[atomGroup2].isSpecificCaseOf(parentBonds[atomGroup1]):
-                                    notSubgroup=addToNotSubgroup(notSubgroup, nodeName, index)
-                                    continue
-                            else:
-                                notSubgroup=addToNotSubgroup(notSubgroup, nodeName, index)
-                                continue
+                    
+                    if not nodeGroup.item.isSubgraphIsomorphic(nodeParent.item):
+                        notSubgroup=addToNotSubgroup(notSubgroup, nodeName, -9)
+
         except DatabaseError, e:
             logging.error(str(e))
         
